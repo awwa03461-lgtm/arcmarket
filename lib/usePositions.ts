@@ -5,6 +5,9 @@ import { MARKET_ABI, ERC20_ABI } from "./abis";
 import { MarketInfo } from "./useMarkets";
 import { MarketState } from "./chain";
 
+type Address = `0x${string}`;
+const ZERO: Address = "0x0000000000000000000000000000000000000000";
+
 export type Position = {
   market: MarketInfo;
   yesShares: bigint;
@@ -13,7 +16,7 @@ export type Position = {
   winningOutcome: number;
 };
 
-export function usePositions(markets: MarketInfo[], user?: 0x${string}) {
+export function usePositions(markets: MarketInfo[], user?: Address) {
   const hasInput = markets.length > 0 && !!user;
 
   const tokenContracts = hasInput
@@ -29,13 +32,11 @@ export function usePositions(markets: MarketInfo[], user?: 0x${string}) {
     query: { enabled: tokenContracts.length > 0 },
   });
 
-  const zero = "0x0000000000000000000000000000000000000000" as const;
-
   const balanceContracts =
     tokenData && user
       ? markets.flatMap((_, i) => {
-          const yesToken = (tokenData[i * 3]?.result as 0x${string} | undefined) ?? zero;
-          const noToken = (tokenData[i * 3 + 1]?.result as 0x${string} | undefined) ?? zero;
+          const yesToken = (tokenData[i * 3]?.result as Address | undefined) ?? ZERO;
+          const noToken = (tokenData[i * 3 + 1]?.result as Address | undefined) ?? ZERO;
           return [
             { address: yesToken, abi: ERC20_ABI, functionName: "balanceOf", args: [user] } as const,
             { address: noToken, abi: ERC20_ABI, functionName: "balanceOf", args: [user] } as const,
@@ -68,6 +69,6 @@ export function usePositions(markets: MarketInfo[], user?: 0x${string}) {
 
 export function formatShares(wei: bigint): string {
   const whole = wei / 10n ** 18n;
-  const frac = (wei % 10n  18n) / 10n  16n;
-  return ${whole.toString()}.${frac.toString().padStart(2, "0")};
+  const frac = (wei % 10n ** 18n) / 10n ** 16n;
+  return `${whole.toString()}.${frac.toString().padStart(2, "0")}`;
 }
