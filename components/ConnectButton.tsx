@@ -1,7 +1,6 @@
 "use client";
 
 // Reown AppKit یک web-component سراسری به نام <appkit-button> ثبت می‌کند.
-// این کامپوننت آن را با ظاهر سفارشی نمایش می‌دهد.
 
 import { useAccount } from "wagmi";
 
@@ -15,8 +14,11 @@ export function ConnectButton() {
           {address.slice(0, 6)}…{address.slice(-4)}
         </span>
       )}
-      {/* @ts-expect-error web component از Reown */}
-      <appkit-button balance="hide" size="sm" />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {(() => {
+        const Btn = "appkit-button" as any;
+        return <Btn balance="hide" size="sm" />;
+      })()}
     </div>
   );
 }
