@@ -1,5 +1,11 @@
 "use client";
-
+// polyfill: به BigInt یاد می‌دهد چطور در JSON سریال شود (مورد نیاز wagmi/react-query)
+if (typeof window !== "undefined") {
+  // @ts-ignore
+  (BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+  };
+}
 import { ReactNode, useEffect } from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
