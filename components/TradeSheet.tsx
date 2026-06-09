@@ -164,8 +164,8 @@ export function TradeSheet({
             : "Buy " + shares + " " + outcomeName}
         </button>
 
-        {txHash && (
-          
+       {txHash && (
+          <a
             href={"https://testnet.arcscan.app/tx/" + txHash}
             target="_blank"
             rel="noreferrer"
