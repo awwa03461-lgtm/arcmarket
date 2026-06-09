@@ -101,6 +101,17 @@ export const MARKET_ABI = [
   },
   {
     type: "function",
+    name: "sell",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "outcomeIdx", type: "uint256" },
+      { name: "shares", type: "uint256" },
+      { name: "minReturn", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
     name: "redeem",
     stateMutability: "nonpayable",
     inputs: [],
