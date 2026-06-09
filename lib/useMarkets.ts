@@ -63,7 +63,7 @@ export function useOutcomeNames(market?: MarketInfo) {
         abi: MARKET_ABI,
         functionName: "getOutcomeToken",
         args: [BigInt(i)],
-      })) as const
+      }))
     : [];
 
   const { data: tokenAddrs } = useReadContracts({
