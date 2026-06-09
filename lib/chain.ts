@@ -5,7 +5,7 @@ import { defineChain } from "viem";
 // اینجا برای اطمینان دستی تعریف می‌کنیم.
 export const arcTestnet = defineChain({
   // آدرس استخر swap (SimpleAMM) روی Arc — USDC/EURC
- export const AMM_ADDRESS =
+export const AMM_ADDRESS =
   "0xa8291c56f63287d4e881E4346662cb3195c23325" as `0x${string}`;
   id: 5042002,
   name: "Arc Testnet",
