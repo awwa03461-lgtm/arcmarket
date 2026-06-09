@@ -1,7 +1,9 @@
 "use client";
 
-import { MarketInfo, priceToPercent } from "@/lib/useMarkets";
+import { MarketInfo, priceToPercent, useOutcomeNames } from "@/lib/useMarkets";
 import { MarketState } from "@/lib/chain";
+
+const COLORS = ["#16c784", "#ea3943", "#f0a020", "#2775CA"];
 
 function timeLeft(closeTime: bigint): string {
   const now = Math.floor(Date.now() / 1000);
@@ -21,8 +23,7 @@ export function MarketCard({
   market: MarketInfo;
   onSelect: (m: MarketInfo) => void;
 }) {
-  const yes = market.prices[0] ? priceToPercent(market.prices[0]) : 50;
-  const no = market.prices[1] ? priceToPercent(market.prices[1]) : 50;
+  const names = useOutcomeNames(market);
   const resolved = market.state === MarketState.Resolved;
 
   return (
@@ -41,14 +42,29 @@ export function MarketCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-sm">
-        <span className="num font-semibold text-yes">YES {yes.toFixed(1)}%</span>
-        <span className="num font-semibold text-no">NO {no.toFixed(1)}%</span>
-      </div>
-
-      <div className="price-bar mt-2 bg-white/5">
-        <div className="bg-yes transition-all" style={{ width: `${yes}%` }} />
-        <div className="bg-no transition-all" style={{ width: `${no}%` }} />
+      <div className="mt-3 space-y-1.5">
+        {market.prices.map((p, i) => {
+          const pct = priceToPercent(p);
+          const isWinner = resolved && market.winningOutcome === i;
+          return (
+            <div key={i}>
+              <div className="flex items-center justify-between text-xs">
+                <span className={isWinner ? "font-bold text-yes" : ""}>
+                  {names[i] ?? `گزینه ${i + 1}`} {isWinner && "✓"}
+                </span>
+                <span className="num font-semibold" style={{ color: COLORS[i % 4] }}>
+                  {pct.toFixed(1)}%
+                </span>
+              </div>
+              <div className="price-bar mt-1 bg-white/5">
+                <div
+                  className="transition-all"
+                  style={{ width: `${pct}%`, background: COLORS[i % 4] }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {!resolved && (
