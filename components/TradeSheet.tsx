@@ -52,7 +52,7 @@ export function TradeSheet({
 
   async function handleBuy() {
     if (!isConnected || !address) {
-      (window as any).Telegram?.WebApp?.showAlert?.("ابتدا کیف پول را وصل کنید");
+      (window as any).Telegram?.WebApp?.showAlert?.("Connect wallet first");
       return;
     }
     setBusy(true);
@@ -81,7 +81,7 @@ export function TradeSheet({
     } catch (e: any) {
       haptic("error");
       (window as any).Telegram?.WebApp?.showAlert?.(
-        "خطا: " + (e?.shortMessage || e?.message || "ناموفق")
+        "Error: " + (e?.shortMessage || e?.message || "failed")
       );
     } finally {
       setBusy(false);
@@ -89,6 +89,7 @@ export function TradeSheet({
   }
 
   const resolved = market.state === MarketState.Resolved;
+  const outcomeName = names[outcome] || "outcome " + (outcome + 1);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
@@ -107,23 +108,24 @@ export function TradeSheet({
                 setOutcome(i);
                 haptic("light");
               }}
-              className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                outcome === i ? "ring-2" : "bg-white/5 text-white/70"
-              }`}
+              className={
+                "flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition " +
+                (outcome === i ? "ring-2" : "bg-white/5 text-white/70")
+              }
               style={
                 outcome === i
                   ? { background: COLORS[i % 4] + "22", color: COLORS[i % 4] }
                   : {}
               }
             >
-              <span>{names[i] ?? `گزینه ${i + 1}`}</span>
-              <span className="num">{priceToPercent(p).toFixed(1)}¢</span>
+              <span>{names[i] || "outcome " + (i + 1)}</span>
+              <span className="num">{priceToPercent(p).toFixed(1)}c</span>
             </button>
           ))}
         </div>
 
         <div className="mt-4">
-          <label className="text-xs text-white/50">تعداد شِیر</label>
+          <label className="text-xs text-white/50">Shares</label>
           <input
             type="number"
             inputMode="decimal"
@@ -146,7 +148,7 @@ export function TradeSheet({
         </div>
 
         <div className="num mt-4 flex justify-between rounded-xl bg-white/5 p-3 text-sm">
-          <span className="text-white/50">هزینهٔ تخمینی</span>
+          <span className="text-white/50">Est. cost</span>
           <span className="font-semibold">~{estCost.toFixed(2)} USDC</span>
         </div>
 
@@ -156,20 +158,20 @@ export function TradeSheet({
           className="mt-4 w-full rounded-2xl bg-usdc py-4 font-semibold text-white disabled:opacity-40"
         >
           {resolved
-            ? "بازار حل شده"
+            ? "Market resolved"
             : busy || confirming
-            ? "در حال پردازش…"
-            : `خرید ${shares} از «${names[outcome] ?? outcome + 1}»`}
+            ? "Processing..."
+            : "Buy " + shares + " " + outcomeName}
         </button>
 
         {txHash && (
           
-            href={`https://testnet.arcscan.app/tx/${txHash}`}
+            href={"https://testnet.arcscan.app/tx/" + txHash}
             target="_blank"
             rel="noreferrer"
             className="mt-3 block text-center text-xs text-usdc underline"
           >
-            مشاهدهٔ تراکنش روی ArcScan ↗
+            View on ArcScan
           </a>
         )}
       </div>
