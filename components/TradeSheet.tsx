@@ -10,7 +10,9 @@ import {
 import { parseUnits } from "viem";
 import { MARKET_ABI, ERC20_ABI } from "@/lib/abis";
 import { USDC_ADDRESS, USDC_DECIMALS, MarketState } from "@/lib/chain";
-import { MarketInfo, priceToPercent } from "@/lib/useMarkets";
+import { MarketInfo, priceToPercent, useOutcomeNames } from "@/lib/useMarkets";
+
+const COLORS = ["#16c784", "#ea3943", "#f0a020", "#2775CA"];
 
 function haptic(type: "success" | "error" | "light") {
   const tg = (window as any).Telegram?.WebApp;
@@ -27,7 +29,8 @@ export function TradeSheet({
   onClose: () => void;
 }) {
   const { address, isConnected } = useAccount();
-  const [outcome, setOutcome] = useState(0); // 0 = YES, 1 = NO
+  const names = useOutcomeNames(market);
+  const [outcome, setOutcome] = useState(0);
   const [shares, setShares] = useState("10");
   const { writeContractAsync } = useWriteContract();
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
@@ -35,13 +38,8 @@ export function TradeSheet({
 
   const { isLoading: confirming } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // تخمین قیمت لحظه‌ای نتیجهٔ انتخابی
-  const price = market.prices[outcome]
-    ? priceToPercent(market.prices[outcome])
-    : 50;
-  // تخمین خام هزینه: shares * price (USDC) — تخمین UI، قیمت دقیق روی زنجیره
+  const price = market.prices[outcome] ? priceToPercent(market.prices[outcome]) : 50;
   const estCost = (Number(shares || "0") * price) / 100;
-  // maxCost با ۵٪ حاشیهٔ لغزش
   const maxCost = estCost * 1.05;
 
   const { data: allowance } = useReadContract({
@@ -54,8 +52,7 @@ export function TradeSheet({
 
   async function handleBuy() {
     if (!isConnected || !address) {
-      const tg = (window as any).Telegram?.WebApp;
-      tg?.showAlert?.("ابتدا کیف پول را وصل کنید");
+      (window as any).Telegram?.WebApp?.showAlert?.("ابتدا کیف پول را وصل کنید");
       return;
     }
     setBusy(true);
@@ -63,20 +60,16 @@ export function TradeSheet({
       const sharesWei = parseUnits(shares || "0", 18);
       const maxCostUnits = parseUnits(maxCost.toFixed(USDC_DECIMALS), USDC_DECIMALS);
 
-      // ۱) approve در صورت نیاز
-      const needed = maxCostUnits;
-      if (!allowance || (allowance as bigint) < needed) {
-        const approveTx = await writeContractAsync({
+      if (!allowance || (allowance as bigint) < maxCostUnits) {
+        await writeContractAsync({
           address: USDC_ADDRESS,
           abi: ERC20_ABI,
           functionName: "approve",
           args: [market.address, parseUnits("1000000", USDC_DECIMALS)],
         });
-        // صبر کوتاه برای تأیید approve (در پروداکشن با useWaitForTransactionReceipt)
         await new Promise((r) => setTimeout(r, 2500));
       }
 
-      // ۲) buy
       const buyTx = await writeContractAsync({
         address: market.address,
         abi: MARKET_ABI,
@@ -87,48 +80,48 @@ export function TradeSheet({
       haptic("success");
     } catch (e: any) {
       haptic("error");
-      const tg = (window as any).Telegram?.WebApp;
-      tg?.showAlert?.("خطا: " + (e?.shortMessage || e?.message || "ناموفق"));
+      (window as any).Telegram?.WebApp?.showAlert?.(
+        "خطا: " + (e?.shortMessage || e?.message || "ناموفق")
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  const resolved = market.state === MarketState.Resolved;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
-        className="glass w-full rounded-b-none p-5 pb-8"
+        className="glass max-h-[90vh] w-full overflow-y-auto rounded-b-none p-5 pb-8"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
         <h3 className="text-base font-medium leading-snug">{market.question}</h3>
 
-        {/* انتخاب YES / NO */}
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {["YES", "NO"].map((label, i) => (
+        <div className="mt-4 space-y-2">
+          {market.prices.map((p, i) => (
             <button
-              key={label}
+              key={i}
               onClick={() => {
                 setOutcome(i);
                 haptic("light");
               }}
-              className={`num rounded-2xl py-3 text-center font-semibold transition ${
-                outcome === i
-                  ? i === 0
-                    ? "bg-yes text-black"
-                    : "bg-no text-white"
-                  : "bg-white/5 text-white/60"
+              className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                outcome === i ? "ring-2" : "bg-white/5 text-white/70"
               }`}
+              style={
+                outcome === i
+                  ? { background: COLORS[i % 4] + "22", color: COLORS[i % 4] }
+                  : {}
+              }
             >
-              {label}
-              <div className="text-xs font-normal opacity-80">
-                {market.prices[i] ? priceToPercent(market.prices[i]).toFixed(1) : "50"}¢
-              </div>
+              <span>{names[i] ?? `گزینه ${i + 1}`}</span>
+              <span className="num">{priceToPercent(p).toFixed(1)}¢</span>
             </button>
           ))}
         </div>
 
-        {/* مقدار شِیر */}
         <div className="mt-4">
           <label className="text-xs text-white/50">تعداد شِیر</label>
           <input
@@ -152,7 +145,6 @@ export function TradeSheet({
           </div>
         </div>
 
-        {/* خلاصهٔ هزینه */}
         <div className="num mt-4 flex justify-between rounded-xl bg-white/5 p-3 text-sm">
           <span className="text-white/50">هزینهٔ تخمینی</span>
           <span className="font-semibold">~{estCost.toFixed(2)} USDC</span>
@@ -160,43 +152,25 @@ export function TradeSheet({
 
         <button
           onClick={handleBuy}
-          disabled={busy || confirming || market.state === MarketState.Resolved}
+          disabled={busy || confirming || resolved}
           className="mt-4 w-full rounded-2xl bg-usdc py-4 font-semibold text-white disabled:opacity-40"
         >
-          {market.state === MarketState.Resolved
+          {resolved
             ? "بازار حل شده"
             : busy || confirming
             ? "در حال پردازش…"
-            : `خرید ${shares} ${outcome === 0 ? "YES" : "NO"}`}
+            : `خرید ${shares} از «${names[outcome] ?? outcome + 1}»`}
         </button>
 
         {txHash && (
-          <>
-            <a
-              href={`https://testnet.arcscan.app/tx/${txHash}`}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 block text-center text-xs text-usdc underline"
-            >
-              مشاهدهٔ تراکنش روی ArcScan ↗
-            </a>
-            <button
-              onClick={() => {
-                const tg = (window as any).Telegram?.WebApp;
-                const payload = JSON.stringify({
-                  question: market.question,
-                  outcome: outcome === 0 ? "YES" : "NO",
-                  shares,
-                });
-                // در Mini App راه‌اندازی‌شده با keyboard button، sendData چت را می‌بندد
-                // و داده را به بات می‌فرستد تا در گروه به اشتراک بگذارد
-                if (tg?.sendData) tg.sendData(payload);
-              }}
-              className="mt-2 w-full rounded-xl bg-white/5 py-2.5 text-sm text-white/70"
-            >
-              📣 اشتراک در چت
-            </button>
-          </>
+          
+            href={`https://testnet.arcscan.app/tx/${txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 block text-center text-xs text-usdc underline"
+          >
+            مشاهدهٔ تراکنش روی ArcScan ↗
+          </a>
         )}
       </div>
     </div>
