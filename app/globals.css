@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== تم روشن (پیش‌فرض) ===== */
+:root {
+  --bg-grad-1: rgba(77, 141, 255, 0.10);
+  --bg-grad-2: rgba(245, 177, 76, 0.08);
+  --bg-base: #f6f8fc;
+  --surface: #ffffff;
+  --surface-2: #eef2f9;
+  --ink: #0e1626;
+  --ink-dim: #5d6b85;
+  --yes: #16b886;
+  --no: #ec4d6a;
+  --usdc: #2f7bff;
+  --amber: #e0982a;
+  --border: rgba(14, 22, 38, 0.08);
+  --shadow: 0 6px 24px rgba(20, 40, 80, 0.08);
+}
+
+/* ===== تم تاریک ===== */
+.dark {
+  --bg-grad-1: rgba(77, 141, 255, 0.12);
+  --bg-grad-2: rgba(245, 177, 76, 0.06);
+  --bg-base: #0b1020;
+  --surface: #11182e;
+  --surface-2: #161f3a;
+  --ink: #eef2fb;
+  --ink-dim: #8b96b5;
+  --yes: #2dd4a7;
+  --no: #f25e7a;
+  --usdc: #4d8dff;
+  --amber: #f5b14c;
+  --border: rgba(255, 255, 255, 0.08);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+html, body {
+  background:
+    radial-gradient(1200px 600px at 50% -200px, var(--bg-grad-1), transparent 60%),
+    radial-gradient(800px 400px at 90% 10%, var(--bg-grad-2), transparent 55%),
+    var(--bg-base);
+  background-attachment: fixed;
+  color: var(--ink);
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.num {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+.display {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.glass-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.prob-track {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: flex;
+}
+.prob-fill {
+  height: 100%;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes livepulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 999px;
+  background: var(--yes);
+  animation: livepulse 1.8s ease-in-out infinite;
+}
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: riseIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+button { -webkit-tap-highlight-color: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .prob-fill, .rise, .live-dot { animation: none; transition: none; }
+}
+
+/* ===== لایهٔ سازگاری: کلاس‌های رنگ ثابت قدیمی را تم‌پذیر می‌کند ===== */
+/* در تم روشن، متن و پس‌زمینه‌های سفیدِ هاردکدشده را به رنگ‌های خوانا تبدیل می‌کند */
+:root .text-white { color: var(--ink) !important; }
+:root .text-white\/70 { color: var(--ink-dim) !important; }
+:root .text-white\/60 { color: var(--ink-dim) !important; }
+:root .text-white\/50 { color: var(--ink-dim) !important; }
+:root .text-white\/40 { color: var(--ink-dim) !important; }
+:root .text-white\/30 { color: var(--ink-dim) !important; }
+
+:root .bg-white\/5 { background-color: var(--surface-2) !important; }
+:root .bg-white\/10 { background-color: var(--surface-2) !important; }
+
+/* در تم تاریک، رفتار اصلی برمی‌گردد */
+.dark .text-white { color: #fff !important; }
+.dark .text-white\/70 { color: rgba(255,255,255,0.7) !important; }
+.dark .text-white\/60 { color: rgba(255,255,255,0.6) !important; }
+.dark .text-white\/50 { color: rgba(255,255,255,0.5) !important; }
+.dark .text-white\/40 { color: rgba(255,255,255,0.4) !important; }
+.dark .text-white\/30 { color: rgba(255,255,255,0.3) !important; }
+.dark .bg-white\/5 { background-color: rgba(255,255,255,0.05) !important; }
+.dark .bg-white\/10 { background-color: rgba(255,255,255,0.10) !important; }
