@@ -3,10 +3,10 @@
 // Reown AppKit registers a global <appkit-button> web component.
 
 export function ConnectButton() {
+  const Btn = "appkit-button" as any;
   return (
     <div className="flex items-center">
-      {/* @ts-expect-error Reown web component */}
-      <appkit-button balance="hide" size="sm" />
+      <Btn balance="hide" size="sm" />
     </div>
   );
 }
