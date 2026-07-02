@@ -21,6 +21,9 @@ export const FACTORY_ADDRESS = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS ||
 export const USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000" as `0x${string}`;
 export const USDC_DECIMALS = 6;
+// SimpleAMM pool on Arc — USDC/EURC swap
+export const AMM_ADDRESS =
+  "0xa8291c56f63287d4e881E4346662cb3195c23325" as 0x${string};
 
 // Market state enum (matches the UMA-integrated contract)
 export const MarketState = { Seeding: 0, Open: 1, Asserted: 2, Resolved: 3 } as const;
