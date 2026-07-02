@@ -13,7 +13,6 @@ import { ResolveControl } from "@/components/ResolveControl";
 import { useMarketAddresses, useMarkets, MarketInfo } from "@/lib/useMarkets";
 import { FACTORY_ADDRESS, MarketState } from "@/lib/chain";
 
-type Tab = "markets" | "portfolio" | "send";
 type Tab = "markets" | "portfolio" | "send" | "swap";
 type MarketFilter = "active" | "closed";
 
