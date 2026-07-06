@@ -9,11 +9,12 @@ import { CreateMarketSheet } from "@/components/CreateMarketSheet";
 import { Portfolio } from "@/components/Portfolio";
 import { Send } from "@/components/Send";
 import { Swap } from "@/components/Swap";
+import { MintNFT } from "@/components/MintNFT";
 import { ResolveControl } from "@/components/ResolveControl";
 import { useMarketAddresses, useMarkets, MarketInfo } from "@/lib/useMarkets";
 import { FACTORY_ADDRESS, MarketState } from "@/lib/chain";
 
-type Tab = "markets" | "portfolio" | "send" | "swap";
+type Tab = "markets" | "portfolio" | "send" | "swap" | "nft";
 type MarketFilter = "active" | "closed";
 
 export default function Home() {
@@ -61,6 +62,7 @@ export default function Home() {
     { id: "portfolio", label: "Portfolio" },
     { id: "send", label: "Send" },
     { id: "swap", label: "Swap" },
+    { id: "nft", label: "NFT" },
   ];
 
   return (
@@ -169,6 +171,7 @@ export default function Home() {
 
       {tab === "send" && <Send />}
       {tab === "swap" && <Swap />}
+      {tab === "nft" && <MintNFT />}
 
       {!notDeployed && tab === "markets" && (
         <button
