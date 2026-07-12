@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { createPublicClient, http, parseAbiItem, getAddress } from "viem";
+import { createPublicClient, http, getAddress } from "viem";
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -32,10 +32,6 @@ const client = createPublicClient({
   transport: http("https://rpc.testnet.arc.network"),
 });
 
-const TRANSFER_EVENT = parseAbiItem(
-  "event Transfer(address indexed from, address indexed to, uint256 value)"
-);
-
 function todayKey() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
 }
@@ -45,43 +41,54 @@ Be concise, friendly, and genuinely useful. You can discuss anything, but you're
 If asked which outcome to bet on, explain the factors both ways but never tell someone what to bet — that's their call.`;
 
 // ---- verify the user's 1 USDC payment on-chain ----
-async function verifyPayment(address: string, txHash: string): Promise<boolean> {
+// We decode the Transfer logs directly from the tx receipt (no extra getLogs
+// call, which can be flaky on Arc's RPC).
+const TRANSFER_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+function topicToAddress(topic: string): string {
+  // a 32-byte topic holds a left-padded 20-byte address
+  return ("0x" + topic.slice(-40)).toLowerCase();
+}
+
+async function verifyPayment(
+  address: string,
+  txHash: string
+): Promise<{ ok: boolean; reason?: string }> {
+  let receipt;
   try {
-    const receipt = await client.getTransactionReceipt({
+    receipt = await client.getTransactionReceipt({
       hash: txHash as `0x${string}`,
     });
-    if (receipt.status !== "success") return false;
-
-    // find a USDC Transfer log: user -> treasury, value >= 1 USDC
-    for (const log of receipt.logs) {
-      if (log.address.toLowerCase() !== USDC.toLowerCase()) continue;
-      try {
-        const decoded: any = await client.getLogs({
-          address: USDC,
-          event: TRANSFER_EVENT,
-          fromBlock: receipt.blockNumber,
-          toBlock: receipt.blockNumber,
-        });
-        for (const d of decoded) {
-          const from = (d.args.from as string).toLowerCase();
-          const to = (d.args.to as string).toLowerCase();
-          const value = d.args.value as bigint;
-          if (
-            from === address.toLowerCase() &&
-            to === TREASURY &&
-            value >= PRICE
-          ) {
-            return true;
-          }
-        }
-      } catch {
-        /* keep checking other logs */
-      }
-    }
-    return false;
-  } catch {
-    return false;
+  } catch (e: any) {
+    return { ok: false, reason: "Transaction not found yet" };
   }
+
+  if (receipt.status !== "success") {
+    return { ok: false, reason: "Transaction failed on-chain" };
+  }
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== USDC.toLowerCase()) continue;
+    if (!log.topics || log.topics.length < 3) continue;
+    if ((log.topics[0] || "").toLowerCase() !== TRANSFER_TOPIC) continue;
+
+    const from = topicToAddress(log.topics[1] as string);
+    const to = topicToAddress(log.topics[2] as string);
+    const value = BigInt(log.data);
+
+    if (
+      from === address.toLowerCase() &&
+      to === TREASURY &&
+      value >= PRICE
+    ) {
+      return { ok: true };
+    }
+  }
+  return {
+    ok: false,
+    reason: "No 1 USDC transfer to the treasury found in this transaction",
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -127,10 +134,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const ok = await verifyPayment(addr, txHash);
-    if (!ok) {
+    const result = await verifyPayment(addr, txHash);
+    if (!result.ok) {
       return NextResponse.json(
-        { error: "Payment not found. Make sure you sent 1 USDC and the tx is confirmed." },
+        { error: result.reason || "Payment not verified" },
         { status: 402 }
       );
     }
