@@ -11,7 +11,7 @@ import { parseUnits, formatUnits } from "viem";
 
 const USDC = "0x3600000000000000000000000000000000000000" as `0x${string}`;
 const TREASURY = "0x2326464c8d8EEF23A9Ae30B27CEa4Aa8F831b626" as `0x${string}`;
-const PRICE = "1"; // 1 USDC
+const PRICE = "1";
 
 const ERC20 = [
   {
@@ -34,9 +34,14 @@ const ERC20 = [
 ] as const;
 
 type Msg = { role: "user" | "assistant"; content: string };
+type ConvMeta = { id: string; title: string; updatedAt: number };
 
 function haptic(t: "success" | "error") {
   (window as any).Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.(t);
+}
+
+function newId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 export function ChatTab() {
@@ -46,11 +51,14 @@ export function ChatTab() {
 
   const [paid, setPaid] = useState<boolean | null>(null);
   const [remaining, setRemaining] = useState(5);
+  const [convs, setConvs] = useState<ConvMeta[]>([]);
+  const [convId, setConvId] = useState<string>(newId());
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [activating, setActivating] = useState(false);
   const [err, setErr] = useState("");
+  const [drawer, setDrawer] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const { data: bal } = useReadContract({
@@ -62,7 +70,6 @@ export function ChatTab() {
   });
   const usdc = bal ? Number(formatUnits(bal as bigint, 6)) : 0;
 
-  // check status when wallet connects
   useEffect(() => {
     if (!address) {
       setPaid(null);
@@ -78,9 +85,7 @@ export function ChatTab() {
         const d = await r.json();
         setPaid(!!d.paid);
         setRemaining(d.remaining ?? 5);
-        if (Array.isArray(d.history) && d.history.length) {
-          setMessages(d.history);
-        }
+        setConvs(Array.isArray(d.convs) ? d.convs : []);
       } catch {
         setPaid(false);
       }
@@ -103,7 +108,6 @@ export function ChatTab() {
         args: [TREASURY, parseUnits(PRICE, 6)],
       });
       await publicClient.waitForTransactionReceipt({ hash });
-
       const r = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,16 +125,45 @@ export function ChatTab() {
     }
   }
 
-  async function clearHistory() {
+  function newChat() {
+    setConvId(newId());
+    setMessages([]);
+    setErr("");
+    setDrawer(false);
+  }
+
+  async function openConv(id: string) {
     if (!address) return;
-    if (!confirm("Clear your chat history? This cannot be undone.")) return;
+    setDrawer(false);
+    setErr("");
+    setConvId(id);
+    setMessages([]);
     try {
-      await fetch("/api/chat", {
+      const r = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "clear", address }),
+        body: JSON.stringify({ action: "load", address, convId: id }),
       });
-      setMessages([]);
+      const d = await r.json();
+      setMessages(Array.isArray(d.messages) ? d.messages : []);
+    } catch {
+      setErr("Could not load that chat");
+    }
+  }
+
+  async function deleteConv(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!address) return;
+    if (!confirm("Delete this chat?")) return;
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", address, convId: id }),
+      });
+      const d = await r.json();
+      setConvs(Array.isArray(d.convs) ? d.convs : []);
+      if (id === convId) newChat();
       haptic("success");
     } catch {
       haptic("error");
@@ -149,18 +182,18 @@ export function ChatTab() {
       const r = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "chat", address, messages: next }),
+        body: JSON.stringify({ action: "chat", address, convId, messages: next }),
       });
       const d = await r.json();
       if (!r.ok) {
         setErr(d.error || "Failed");
-        setMessages(messages); // roll back
-        // if the server says we're not activated, show the lock screen again
+        setMessages(messages);
         if (r.status === 402) setPaid(false);
         return;
       }
       setMessages([...next, { role: "assistant", content: d.reply }]);
       setRemaining(d.remaining ?? 0);
+      if (Array.isArray(d.convs)) setConvs(d.convs);
       haptic("success");
     } catch (e: any) {
       setErr(e?.message || "Failed");
@@ -185,7 +218,7 @@ export function ChatTab() {
     );
   }
 
-  // ---------- locked (not paid) ----------
+  // ---------- locked ----------
   if (paid === false) {
     return (
       <div className="glass p-8 text-center">
@@ -194,14 +227,18 @@ export function ChatTab() {
           Unlock Arc Assistant
         </h3>
         <p className="mt-2 text-sm" style={{ color: "var(--ink-dim)" }}>
-          A one-time <span className="num font-semibold" style={{ color: "var(--usdc)" }}>1 USDC</span> payment
-          unlocks the AI chat forever. You get <b>5 questions per day</b>.
+          A one-time{" "}
+          <span className="num font-semibold" style={{ color: "var(--usdc)" }}>
+            1 USDC
+          </span>{" "}
+          payment unlocks the AI chat forever. You get <b>5 questions per day</b>.
         </p>
-
         <div className="glass-2 mt-4 p-3 text-xs" style={{ color: "var(--ink-dim)" }}>
-          Your balance: <span className="num" style={{ color: "var(--ink)" }}>{usdc.toFixed(2)} USDC</span>
+          Your balance:{" "}
+          <span className="num" style={{ color: "var(--ink)" }}>
+            {usdc.toFixed(2)} USDC
+          </span>
         </div>
-
         <button
           onClick={activate}
           disabled={activating || usdc < 1}
@@ -210,33 +247,14 @@ export function ChatTab() {
         >
           {activating ? "Activating..." : usdc < 1 ? "Need 1 USDC" : "Pay 1 USDC & Unlock"}
         </button>
-
-        {err && (
-          <div className="mt-3 text-xs" style={{ color: "var(--no)" }}>{err}</div>
-        )}
-        <button
-          onClick={async () => {
-            const r = await fetch("/api/chat", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "debug", address }),
-            });
-            const d = await r.json();
-            alert(JSON.stringify(d, null, 2));
-          }}
-          className="mt-3 text-[10px] underline"
-          style={{ color: "var(--ink-dim)" }}
-        >
-          Run diagnostics
-        </button>
-        <p className="mt-2 text-[10px]" style={{ color: "var(--ink-dim)" }}>
+        {err && <div className="mt-3 text-xs" style={{ color: "var(--no)" }}>{err}</div>}
+        <p className="mt-3 text-[10px]" style={{ color: "var(--ink-dim)" }}>
           Testnet USDC on Arc · one-time payment
         </p>
       </div>
     );
   }
 
-  // ---------- loading status ----------
   if (paid === null) {
     return (
       <div className="glass p-8 text-center text-sm" style={{ color: "var(--ink-dim)" }}>
@@ -245,41 +263,37 @@ export function ChatTab() {
     );
   }
 
-  // ---------- chat (unlocked) ----------
+  // ---------- chat ----------
   return (
-    <div className="glass flex flex-col" style={{ height: "70vh" }}>
+    <div className="glass relative flex flex-col overflow-hidden" style={{ height: "70vh" }}>
       {/* header */}
       <div
-        className="flex items-center justify-between border-b px-4 py-3"
+        className="flex items-center justify-between border-b px-3 py-3"
         style={{ borderColor: "var(--border)" }}
       >
+        <button
+          onClick={() => setDrawer(true)}
+          className="rounded-lg px-2 py-1 text-lg"
+          style={{ color: "var(--ink)" }}
+          aria-label="Chats"
+        >
+          ☰
+        </button>
         <div className="flex items-center gap-2">
-          <span className="text-lg">🤖</span>
-          <span className="font-semibold" style={{ color: "var(--ink)" }}>
+          <span className="text-base">🤖</span>
+          <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
             Arc Assistant
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              onClick={clearHistory}
-              className="rounded-full px-2 py-1 text-[11px]"
-              style={{ background: "var(--surface-2)", color: "var(--ink-dim)" }}
-              title="Clear chat history"
-            >
-              Clear
-            </button>
-          )}
-          <span
-            className="num rounded-full px-2.5 py-1 text-[11px] font-semibold"
-            style={{
-              background: remaining > 0 ? "var(--surface-2)" : "#f25e7a22",
-              color: remaining > 0 ? "var(--ink-dim)" : "#f25e7a",
-            }}
-          >
-            {remaining}/5 left today
-          </span>
-        </div>
+        <span
+          className="num rounded-full px-2 py-1 text-[10px] font-semibold"
+          style={{
+            background: remaining > 0 ? "var(--surface-2)" : "#f25e7a22",
+            color: remaining > 0 ? "var(--ink-dim)" : "#f25e7a",
+          }}
+        >
+          {remaining}/5
+        </span>
       </div>
 
       {/* messages */}
@@ -319,7 +333,11 @@ export function ChatTab() {
               style={
                 m.role === "user"
                   ? { background: "var(--usdc)", color: "#fff" }
-                  : { background: "var(--surface-2)", color: "var(--ink)", whiteSpace: "pre-wrap" }
+                  : {
+                      background: "var(--surface-2)",
+                      color: "var(--ink)",
+                      whiteSpace: "pre-wrap",
+                    }
               }
             >
               {m.content}
@@ -329,10 +347,7 @@ export function ChatTab() {
 
         {busy && (
           <div className="flex justify-start">
-            <div
-              className="rounded-2xl px-4 py-3"
-              style={{ background: "var(--surface-2)" }}
-            >
+            <div className="rounded-2xl px-4 py-3" style={{ background: "var(--surface-2)" }}>
               <span className="inline-flex gap-1">
                 <span className="dot" />
                 <span className="dot" style={{ animationDelay: "0.15s" }} />
@@ -379,6 +394,70 @@ export function ChatTab() {
           </button>
         </div>
       </div>
+
+      {/* ---------- slide-over drawer ---------- */}
+      {drawer && (
+        <div
+          className="absolute inset-0 z-20"
+          onClick={() => setDrawer(false)}
+          style={{ background: "rgba(0,0,0,0.4)" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-y-0 left-0 flex w-[78%] max-w-[300px] flex-col p-3"
+            style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}
+          >
+            <button
+              onClick={newChat}
+              className="w-full rounded-xl py-3 text-sm font-semibold text-white"
+              style={{ background: "var(--usdc)" }}
+            >
+              + New chat
+            </button>
+
+            <div className="mt-3 px-1 text-[11px] font-semibold uppercase" style={{ color: "var(--ink-dim)" }}>
+              Your chats
+            </div>
+
+            <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
+              {convs.length === 0 && (
+                <div className="px-2 py-4 text-xs" style={{ color: "var(--ink-dim)" }}>
+                  No chats yet. Start one!
+                </div>
+              )}
+              {convs.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => openConv(c.id)}
+                  className="group flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5"
+                  style={{
+                    background: c.id === convId ? "var(--surface-2)" : "transparent",
+                  }}
+                >
+                  <span
+                    className="flex-1 truncate text-xs"
+                    style={{ color: c.id === convId ? "var(--ink)" : "var(--ink-dim)" }}
+                  >
+                    {c.title}
+                  </span>
+                  <button
+                    onClick={(e) => deleteConv(c.id, e)}
+                    className="ml-2 text-[11px] opacity-50"
+                    style={{ color: "var(--ink-dim)" }}
+                    aria-label="Delete chat"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t pt-2 text-center text-[10px]" style={{ borderColor: "var(--border)", color: "var(--ink-dim)" }}>
+              {remaining}/5 questions left today
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .dot {
