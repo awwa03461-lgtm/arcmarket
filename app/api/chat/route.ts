@@ -32,6 +32,11 @@ const client = createPublicClient({
   transport: http("https://rpc.testnet.arc.network"),
 });
 
+type Msg = { role: "user" | "assistant"; content: string };
+
+// keep the stored transcript from growing without bound
+const MAX_STORED = 100;
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
 }
@@ -138,11 +143,13 @@ export async function POST(req: NextRequest) {
   if (action === "status") {
     const paid = await redis.get(`paid:${addr}`);
     const used = Number(await redis.get(`quota:${addr}:${todayKey()}`)) || 0;
+    const history = (await redis.get(`history:${addr}`)) as Msg[] | null;
     return NextResponse.json({
       paid: !!paid,
       used,
       limit: DAILY_LIMIT,
       remaining: Math.max(0, DAILY_LIMIT - used),
+      history: Array.isArray(history) ? history : [],
     });
   }
 
@@ -235,11 +242,27 @@ export async function POST(req: NextRequest) {
     const newUsed = used + 1;
     await redis.set(qKey, newUsed, { ex: 172800 });
 
+    // persist the full transcript (user messages + this reply)
+    const transcript: Msg[] = [
+      ...messages.map((m: any) => ({
+        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+        content: String(m.content),
+      })),
+      { role: "assistant" as const, content: reply },
+    ].slice(-MAX_STORED);
+    await redis.set(`history:${addr}`, transcript);
+
     return NextResponse.json({
       reply,
       used: newUsed,
       remaining: Math.max(0, DAILY_LIMIT - newUsed),
     });
+  }
+
+  // ---------- action: clear history ----------
+  if (action === "clear") {
+    await redis.del(`history:${addr}`);
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
