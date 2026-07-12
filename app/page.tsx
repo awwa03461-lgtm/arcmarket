@@ -13,8 +13,9 @@ import { MintNFT } from "@/components/MintNFT";
 import { ResolveControl } from "@/components/ResolveControl";
 import { useMarketAddresses, useMarkets, MarketInfo } from "@/lib/useMarkets";
 import { FACTORY_ADDRESS, MarketState } from "@/lib/chain";
+import { ChatTab } from "@/components/ChatTab";
 
-type Tab = "markets" | "portfolio" | "send" | "swap" | "nft";
+type Tab = "markets" | "portfolio" | "send" | "swap" | "nft" | "chat";
 type MarketFilter = "active" | "closed";
 
 export default function Home() {
@@ -63,6 +64,7 @@ export default function Home() {
     { id: "send", label: "Send" },
     { id: "swap", label: "Swap" },
     { id: "nft", label: "NFT" },
+    { id: "chat", label: "Chat" },
   ];
 
   return (
@@ -172,6 +174,7 @@ export default function Home() {
       {tab === "send" && <Send />}
       {tab === "swap" && <Swap />}
       {tab === "nft" && <MintNFT />}
+      {tab === "chat" && <ChatTab />}
 
       {!notDeployed && tab === "markets" && (
         <button
