@@ -1,9 +1,12 @@
 // AI Chat API — gated behind a one-time 1 USDC payment on Arc,
-// with a 5-questions-per-day limit per wallet.
+// with a 5-questions-per-day limit per wallet (shared across all conversations).
 //
-// Storage: Upstash Redis (via Vercel Marketplace)
-//   paid:<address>            -> "1" once the wallet's payment tx is verified
-//   quota:<address>:<YYYYMMDD> -> number of questions used today (TTL 48h)
+// Storage (Upstash Redis):
+//   paid:<addr>                 -> "yes" once the payment tx is verified
+//   tx:<txHash>                 -> addr (prevents reusing one tx)
+//   quota:<addr>:<YYYYMMDD>     -> questions used today (TTL 48h)
+//   convs:<addr>                -> [{ id, title, updatedAt }]  (conversation list)
+//   conv:<addr>:<id>            -> Msg[]  (messages of one conversation)
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
@@ -19,6 +22,11 @@ const TREASURY = "0x2326464c8d8EEF23A9Ae30B27CEa4Aa8F831b626".toLowerCase();
 const USDC = "0x3600000000000000000000000000000000000000" as `0x${string}`;
 const PRICE = 1_000_000n; // 1 USDC (6 decimals)
 const DAILY_LIMIT = 5;
+const MAX_MSGS = 100;   // per conversation
+const MAX_CONVS = 30;   // per wallet
+
+type Msg = { role: "user" | "assistant"; content: string };
+type ConvMeta = { id: string; title: string; updatedAt: number };
 
 const arcTestnet = {
   id: 5042002,
@@ -32,13 +40,13 @@ const client = createPublicClient({
   transport: http("https://rpc.testnet.arc.network"),
 });
 
-type Msg = { role: "user" | "assistant"; content: string };
-
-// keep the stored transcript from growing without bound
-const MAX_STORED = 100;
-
 function todayKey() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function makeTitle(text: string) {
+  const t = text.trim().replace(/\s+/g, " ");
+  return t.length > 40 ? t.slice(0, 40) + "..." : t || "New chat";
 }
 
 const SYSTEM_PROMPT = `You are Arc Assistant, a helpful AI inside a prediction-market app on Arc (Circle's stablecoin blockchain).
@@ -46,13 +54,10 @@ Be concise, friendly, and genuinely useful. You can discuss anything, but you're
 If asked which outcome to bet on, explain the factors both ways but never tell someone what to bet — that's their call.`;
 
 // ---- verify the user's 1 USDC payment on-chain ----
-// We decode the Transfer logs directly from the tx receipt (no extra getLogs
-// call, which can be flaky on Arc's RPC).
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 function topicToAddress(topic: string): string {
-  // a 32-byte topic holds a left-padded 20-byte address
   return ("0x" + topic.slice(-40)).toLowerCase();
 }
 
@@ -65,28 +70,20 @@ async function verifyPayment(
     receipt = await client.getTransactionReceipt({
       hash: txHash as `0x${string}`,
     });
-  } catch (e: any) {
+  } catch {
     return { ok: false, reason: "Transaction not found yet" };
   }
-
   if (receipt.status !== "success") {
     return { ok: false, reason: "Transaction failed on-chain" };
   }
-
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== USDC.toLowerCase()) continue;
     if (!log.topics || log.topics.length < 3) continue;
     if ((log.topics[0] || "").toLowerCase() !== TRANSFER_TOPIC) continue;
-
     const from = topicToAddress(log.topics[1] as string);
     const to = topicToAddress(log.topics[2] as string);
     const value = BigInt(log.data);
-
-    if (
-      from === address.toLowerCase() &&
-      to === TREASURY &&
-      value >= PRICE
-    ) {
+    if (from === address.toLowerCase() && to === TREASURY && value >= PRICE) {
       return { ok: true };
     }
   }
@@ -94,6 +91,16 @@ async function verifyPayment(
     ok: false,
     reason: "No 1 USDC transfer to the treasury found in this transaction",
   };
+}
+
+// ---- helpers ----
+async function getConvs(addr: string): Promise<ConvMeta[]> {
+  const list = (await redis.get(`convs:${addr}`)) as ConvMeta[] | null;
+  return Array.isArray(list) ? list : [];
+}
+
+async function saveConvs(addr: string, list: ConvMeta[]) {
+  await redis.set(`convs:${addr}`, list.slice(0, MAX_CONVS));
 }
 
 export async function POST(req: NextRequest) {
@@ -104,25 +111,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { action, address, txHash, messages } = body || {};
+  const { action, address, txHash, messages, convId, title } = body || {};
   if (!address || typeof address !== "string") {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
   }
   const addr = getAddress(address).toLowerCase();
 
-  // ---------- action: debug (check Redis + stored state) ----------
+  // ---------- debug ----------
   if (action === "debug") {
     try {
       await redis.set("healthcheck", "ok", { ex: 60 });
       const health = await redis.get("healthcheck");
       const paid = await redis.get(`paid:${addr}`);
-      const used = await redis.get(`quota:${addr}:${todayKey()}`);
       return NextResponse.json({
-        redisWorking: health === "ok" || !!health,
-        healthValue: health,
+        redisWorking: !!health,
         paidValue: paid,
-        paidType: typeof paid,
-        usedValue: used,
         addr,
         hasGroqKey: !!process.env.GROQ_API_KEY,
         hasRedisUrl: !!process.env.KV_REST_API_URL,
@@ -132,28 +135,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         redisWorking: false,
         error: String(e?.message || e).slice(0, 300),
-        hasGroqKey: !!process.env.GROQ_API_KEY,
-        hasRedisUrl: !!process.env.KV_REST_API_URL,
-        hasRedisToken: !!process.env.KV_REST_API_TOKEN,
       });
     }
   }
 
-  // ---------- action: status ----------
+  // ---------- status: paid? quota? conversation list? ----------
   if (action === "status") {
     const paid = await redis.get(`paid:${addr}`);
     const used = Number(await redis.get(`quota:${addr}:${todayKey()}`)) || 0;
-    const history = (await redis.get(`history:${addr}`)) as Msg[] | null;
+    const convs = await getConvs(addr);
     return NextResponse.json({
       paid: !!paid,
       used,
       limit: DAILY_LIMIT,
       remaining: Math.max(0, DAILY_LIMIT - used),
-      history: Array.isArray(history) ? history : [],
+      convs,
     });
   }
 
-  // ---------- action: activate (verify the payment tx) ----------
+  // ---------- activate ----------
   if (action === "activate") {
     if (!txHash) {
       return NextResponse.json({ error: "Missing txHash" }, { status: 400 });
@@ -162,8 +162,7 @@ export async function POST(req: NextRequest) {
     if (already) {
       return NextResponse.json({ paid: true, message: "Already active" });
     }
-    // prevent one tx being reused by several wallets
-    const txUsed = await redis.get(`tx:${txHash.toLowerCase()}`);
+    const txUsed = await redis.get(`tx:${String(txHash).toLowerCase()}`);
     if (txUsed) {
       return NextResponse.json(
         { error: "This transaction was already used" },
@@ -178,11 +177,44 @@ export async function POST(req: NextRequest) {
       );
     }
     await redis.set(`paid:${addr}`, "yes");
-    await redis.set(`tx:${txHash.toLowerCase()}`, addr);
+    await redis.set(`tx:${String(txHash).toLowerCase()}`, addr);
     return NextResponse.json({ paid: true, message: "Chat activated!" });
   }
 
-  // ---------- action: chat ----------
+  // ---------- load one conversation ----------
+  if (action === "load") {
+    if (!convId) {
+      return NextResponse.json({ error: "Missing convId" }, { status: 400 });
+    }
+    const msgs = (await redis.get(`conv:${addr}:${convId}`)) as Msg[] | null;
+    return NextResponse.json({ messages: Array.isArray(msgs) ? msgs : [] });
+  }
+
+  // ---------- delete one conversation ----------
+  if (action === "delete") {
+    if (!convId) {
+      return NextResponse.json({ error: "Missing convId" }, { status: 400 });
+    }
+    await redis.del(`conv:${addr}:${convId}`);
+    const convs = await getConvs(addr);
+    await saveConvs(addr, convs.filter((c) => c.id !== convId));
+    return NextResponse.json({ ok: true, convs: await getConvs(addr) });
+  }
+
+  // ---------- rename a conversation ----------
+  if (action === "rename") {
+    if (!convId || !title) {
+      return NextResponse.json({ error: "Missing convId/title" }, { status: 400 });
+    }
+    const convs = await getConvs(addr);
+    const next = convs.map((c) =>
+      c.id === convId ? { ...c, title: makeTitle(String(title)) } : c
+    );
+    await saveConvs(addr, next);
+    return NextResponse.json({ ok: true, convs: next });
+  }
+
+  // ---------- chat ----------
   if (action === "chat") {
     const paid = await redis.get(`paid:${addr}`);
     if (!paid) {
@@ -192,6 +224,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // shared daily quota across ALL conversations
     const qKey = `quota:${addr}:${todayKey()}`;
     const used = Number(await redis.get(qKey)) || 0;
     if (used >= DAILY_LIMIT) {
@@ -204,27 +237,32 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: "No messages" }, { status: 400 });
     }
+    if (!convId) {
+      return NextResponse.json({ error: "Missing convId" }, { status: 400 });
+    }
 
-    // call Groq
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + GROQ_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages.slice(-10).map((m: any) => ({
-            role: m.role === "user" ? "user" : "assistant",
-            content: String(m.content).slice(0, 2000),
-          })),
-        ],
-        temperature: 0.7,
-        max_tokens: 800,
-      }),
-    });
+    const groqRes = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + GROQ_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...messages.slice(-10).map((m: any) => ({
+              role: m.role === "user" ? "user" : "assistant",
+              content: String(m.content).slice(0, 2000),
+            })),
+          ],
+          temperature: 0.7,
+          max_tokens: 800,
+        }),
+      }
+    );
 
     if (!groqRes.ok) {
       const t = await groqRes.text();
@@ -238,31 +276,38 @@ export async function POST(req: NextRequest) {
     const reply =
       data.choices?.[0]?.message?.content?.trim() || "Sorry, no response.";
 
-    // count this question (TTL 48h so it self-cleans)
+    // count the question (shared quota)
     const newUsed = used + 1;
     await redis.set(qKey, newUsed, { ex: 172800 });
 
-    // persist the full transcript (user messages + this reply)
+    // persist this conversation's transcript
     const transcript: Msg[] = [
       ...messages.map((m: any) => ({
         role: m.role === "user" ? ("user" as const) : ("assistant" as const),
         content: String(m.content),
       })),
       { role: "assistant" as const, content: reply },
-    ].slice(-MAX_STORED);
-    await redis.set(`history:${addr}`, transcript);
+    ].slice(-MAX_MSGS);
+    await redis.set(`conv:${addr}:${convId}`, transcript);
+
+    // upsert its metadata, newest first
+    const convs = await getConvs(addr);
+    const firstUser = messages.find((m: any) => m.role === "user");
+    const existing = convs.find((c) => c.id === convId);
+    const meta: ConvMeta = {
+      id: convId,
+      title: existing?.title || makeTitle(firstUser?.content || "New chat"),
+      updatedAt: Date.now(),
+    };
+    const next = [meta, ...convs.filter((c) => c.id !== convId)];
+    await saveConvs(addr, next);
 
     return NextResponse.json({
       reply,
       used: newUsed,
       remaining: Math.max(0, DAILY_LIMIT - newUsed),
+      convs: next.slice(0, MAX_CONVS),
     });
-  }
-
-  // ---------- action: clear history ----------
-  if (action === "clear") {
-    await redis.del(`history:${addr}`);
-    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
