@@ -105,12 +105,41 @@ export async function POST(req: NextRequest) {
   }
   const addr = getAddress(address).toLowerCase();
 
+  // ---------- action: debug (check Redis + stored state) ----------
+  if (action === "debug") {
+    try {
+      await redis.set("healthcheck", "ok", { ex: 60 });
+      const health = await redis.get("healthcheck");
+      const paid = await redis.get(`paid:${addr}`);
+      const used = await redis.get(`quota:${addr}:${todayKey()}`);
+      return NextResponse.json({
+        redisWorking: health === "ok" || !!health,
+        healthValue: health,
+        paidValue: paid,
+        paidType: typeof paid,
+        usedValue: used,
+        addr,
+        hasGroqKey: !!process.env.GROQ_API_KEY,
+        hasRedisUrl: !!process.env.KV_REST_API_URL,
+        hasRedisToken: !!process.env.KV_REST_API_TOKEN,
+      });
+    } catch (e: any) {
+      return NextResponse.json({
+        redisWorking: false,
+        error: String(e?.message || e).slice(0, 300),
+        hasGroqKey: !!process.env.GROQ_API_KEY,
+        hasRedisUrl: !!process.env.KV_REST_API_URL,
+        hasRedisToken: !!process.env.KV_REST_API_TOKEN,
+      });
+    }
+  }
+
   // ---------- action: status ----------
   if (action === "status") {
-    const paid = await redis.get<string>(`paid:${addr}`);
-    const used = (await redis.get<number>(`quota:${addr}:${todayKey()}`)) || 0;
+    const paid = await redis.get(`paid:${addr}`);
+    const used = Number(await redis.get(`quota:${addr}:${todayKey()}`)) || 0;
     return NextResponse.json({
-      paid: paid === "1",
+      paid: !!paid,
       used,
       limit: DAILY_LIMIT,
       remaining: Math.max(0, DAILY_LIMIT - used),
@@ -122,12 +151,12 @@ export async function POST(req: NextRequest) {
     if (!txHash) {
       return NextResponse.json({ error: "Missing txHash" }, { status: 400 });
     }
-    const already = await redis.get<string>(`paid:${addr}`);
-    if (already === "1") {
+    const already = await redis.get(`paid:${addr}`);
+    if (already) {
       return NextResponse.json({ paid: true, message: "Already active" });
     }
     // prevent one tx being reused by several wallets
-    const txUsed = await redis.get<string>(`tx:${txHash.toLowerCase()}`);
+    const txUsed = await redis.get(`tx:${txHash.toLowerCase()}`);
     if (txUsed) {
       return NextResponse.json(
         { error: "This transaction was already used" },
@@ -141,15 +170,15 @@ export async function POST(req: NextRequest) {
         { status: 402 }
       );
     }
-    await redis.set(`paid:${addr}`, "1");
+    await redis.set(`paid:${addr}`, "yes");
     await redis.set(`tx:${txHash.toLowerCase()}`, addr);
     return NextResponse.json({ paid: true, message: "Chat activated!" });
   }
 
   // ---------- action: chat ----------
   if (action === "chat") {
-    const paid = await redis.get<string>(`paid:${addr}`);
-    if (paid !== "1") {
+    const paid = await redis.get(`paid:${addr}`);
+    if (!paid) {
       return NextResponse.json(
         { error: "Not activated. Pay 1 USDC to unlock chat." },
         { status: 402 }
@@ -157,7 +186,7 @@ export async function POST(req: NextRequest) {
     }
 
     const qKey = `quota:${addr}:${todayKey()}`;
-    const used = (await redis.get<number>(qKey)) || 0;
+    const used = Number(await redis.get(qKey)) || 0;
     if (used >= DAILY_LIMIT) {
       return NextResponse.json(
         { error: `Daily limit reached (${DAILY_LIMIT}/day). Come back tomorrow.` },
