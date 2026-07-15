@@ -141,6 +141,7 @@ export async function GET(req: NextRequest) {
         })) as bigint;
 
         const hash = await wallet.writeContract({
+          chain: arcTestnet as any,
           address: DAILY,
           abi: DAILY_ABI,
           functionName: "settle",
@@ -176,6 +177,7 @@ export async function GET(req: NextRequest) {
 
     // approve the prize transfer, then open the round
     const approveHash = await wallet.writeContract({
+      chain: arcTestnet as any,
       address: USDC,
       abi: ERC20_APPROVE,
       functionName: "approve",
@@ -184,6 +186,7 @@ export async function GET(req: NextRequest) {
     await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
     const openHash = await wallet.writeContract({
+      chain: arcTestnet as any,
       address: DAILY,
       abi: DAILY_ABI,
       functionName: "openRound",
