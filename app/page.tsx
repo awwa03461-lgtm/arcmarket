@@ -14,8 +14,9 @@ import { ResolveControl } from "@/components/ResolveControl";
 import { useMarketAddresses, useMarkets, MarketInfo } from "@/lib/useMarkets";
 import { FACTORY_ADDRESS, MarketState } from "@/lib/chain";
 import { ChatTab } from "@/components/ChatTab";
+import { DailyTab } from "@/components/DailyTab";
 
-type Tab = "markets" | "portfolio" | "send" | "swap" | "nft" | "chat";
+type Tab = "markets" | "portfolio" | "send" | "swap" | "nft" | "chat"| "daily";
 type MarketFilter = "active" | "closed";
 
 export default function Home() {
@@ -65,6 +66,7 @@ export default function Home() {
     { id: "swap", label: "Swap" },
     { id: "nft", label: "NFT" },
     { id: "chat", label: "Chat" },
+    { id: "daily", label: "Daily" },
   ];
 
   return (
@@ -175,6 +177,7 @@ export default function Home() {
       {tab === "swap" && <Swap />}
       {tab === "nft" && <MintNFT />}
       {tab === "chat" && <ChatTab />}
+      {tab === "daily" && <DailyTab />}
 
       {!notDeployed && tab === "markets" && (
         <button
