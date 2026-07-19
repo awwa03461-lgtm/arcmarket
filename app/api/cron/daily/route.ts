@@ -15,7 +15,11 @@ import { DAILY_ABI, FEEDS } from "@/lib/daily";
 
 export const maxDuration = 60;
 
-const RPC = "https://rpc.testnet.arc.network";
+// A dedicated endpoint. The public RPC rate-limits under load, and this route
+// fires several transactions back to back — settle, approve, openRound.
+const RPC =
+  process.env.ARC_RPC_URL ||
+  "https://arc-testnet.g.alchemy.com/v2/1pC7_pJIesZLYctkjhvFQ";
 const HERMES = "https://hermes.pyth.network";
 const USDC = "0x3600000000000000000000000000000000000000" as `0x${string}`;
 const DAILY = process.env.NEXT_PUBLIC_DAILY_ADDRESS as `0x${string}`;
@@ -111,6 +115,7 @@ export async function GET(req: NextRequest) {
       const now = Math.floor(Date.now() / 1000);
 
       if (!settled && now >= closeTime) {
+       try {
         const fee = await publicClient.readContract({
           address: DAILY,
           abi: [
@@ -150,6 +155,13 @@ export async function GET(req: NextRequest) {
         });
         await publicClient.waitForTransactionReceipt({ hash });
         log.push(`settled round ${current} (tx ${hash})`);
+       } catch (e: any) {
+        // A stuck settlement shouldn't stop today's round from opening —
+        // otherwise one bad day takes the whole feature offline.
+        log.push(
+          `settle failed for round ${current}: ${String(e?.message || e).slice(0, 160)}`
+        );
+       }
       } else {
         log.push(`round ${current} not due for settlement yet`);
       }
