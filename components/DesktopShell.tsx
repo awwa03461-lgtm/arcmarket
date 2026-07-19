@@ -48,38 +48,38 @@ const GROUPS: { title: string; items: { id: TabId; label: string; glyph: string 
 const HERO: Record<TabId, { eyebrow: string; title: string; sub: string }> = {
   markets: {
     eyebrow: "Prediction markets",
-    title: "Trade on what happens next.",
-    sub: "Buy the outcome you believe in. Prices move with demand, so the odds are the crowd's live estimate — and you can sell before it resolves.",
+    title: "Trade on what happens next",
+    sub: "Buy the outcome you believe in. Prices move with demand, so the odds are the crowd's live estimate and you can sell before it resolves.",
   },
   daily: {
     eyebrow: "Daily contest",
-    title: "Three calls. One day. Free to enter.",
-    sub: "Read the market on BTC, ETH and SOL. Get all three right and split the pool. Settled on-chain by Pyth — nobody decides the outcome.",
+    title: "Three calls One day Free to enter",
+    sub: "Read the market on BTC, ETH and SOL. Get all three right and split the pool. Settled on-chain by Pyth nobody decides the outcome.",
   },
   portfolio: {
     eyebrow: "Your positions",
-    title: "Everything you're holding.",
+    title: "Everything you're holding",
     sub: "Open positions, resolved markets, and anything waiting to be claimed.",
   },
   send: {
     eyebrow: "Transfers",
-    title: "Move USDC in seconds.",
+    title: "Move USDC in seconds",
     sub: "Send stablecoins to any address on Arc. Fees are paid in USDC, so there's no second token to keep around.",
   },
   swap: {
     eyebrow: "Exchange",
-    title: "Swap between stablecoins.",
+    title: "Swap between stablecoins",
     sub: "USDC and EURC, priced by an on-chain pool. No order book, no counterparty.",
   },
   nft: {
     eyebrow: "Create",
-    title: "Deploy your own NFT in one click.",
+    title: "Deploy your own NFT in one click",
     sub: "Upload an image, name it, and tap once. Your collection goes live on Arc with the first token minted to you.",
   },
   chat: {
     eyebrow: "Assistant",
-    title: "Ask anything.",
-    sub: "Your wallet is your login. One payment unlocks it — no email, no password, no card.",
+    title: "Ask anything",
+    sub: "Your wallet is your login. One payment unlocks it no email, no password, no card.",
   },
 };
 
