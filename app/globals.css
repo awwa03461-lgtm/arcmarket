@@ -625,3 +625,39 @@ button { -webkit-tap-highlight-color: transparent; }
     padding: 22px 13px 36px;
   }
 }
+/* ==========================================================================
+   Scroll fix for the browser shell.
+
+   Append this to the very end of app/globals.css — after the desktop theme
+   block. Same selectors, later in the file, so these win.
+
+   The cause: the shell is a fixed, viewport-height grid, but its row and its
+   inner column were both free to grow past that height. A flex/grid child
+   defaults to min-height:auto, which refuses to shrink below its content, so
+   the scroll area never got a bounded height and everything below the fold
+   was simply clipped. Pinning the row and allowing the column to shrink gives
+   the scroll container a real height to work against.
+   ========================================================================== */
+
+.dsk {
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.dsk-main {
+  min-height: 0;
+}
+
+.dsk-top {
+  flex-shrink: 0;
+}
+
+.dsk-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dsk-nav {
+  min-height: 0;
+}
