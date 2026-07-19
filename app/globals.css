@@ -131,3 +131,497 @@ button { -webkit-tap-highlight-color: transparent; }
 .dark .text-white\/30 { color: rgba(255,255,255,0.3) !important; }
 .dark .bg-white\/5 { background-color: rgba(255,255,255,0.05) !important; }
 .dark .bg-white\/10 { background-color: rgba(255,255,255,0.10) !important; }
+/* ==========================================================================
+   Desktop shell — browser only.
+
+   Everything is scoped to `.dsk`, so the Telegram Mini App keeps the layout
+   and palette it has today. Inside the shell we redefine the same token names
+   the components already use, which re-themes every card, button and label
+   without editing a single component.
+
+   Palette
+     canvas    #E8EEFF  a periwinkle daylight, never flat white
+     rail      #101F49  deep navy, the anchor the page hangs from
+     blue      #2B6CF6  action
+     gold      #E3A33A  value — prizes, balances, anything worth money
+     ink       #0D1730  text
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap");
+
+.dsk {
+  /* --- shell-local palette ------------------------------------------- */
+  --canvas: #e8eeff;
+  --canvas-warm: #fdf3e0;
+  --rail-top: #16295c;
+  --rail-bottom: #0b1738;
+  --blue: #2b6cf6;
+  --blue-soft: #dbe6ff;
+  --gold: #e3a33a;
+  --gold-soft: #f7e3bd;
+
+  /* --- override the app's tokens so children re-theme themselves ----- */
+  --bg-base: var(--canvas);
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-2: rgba(238, 243, 255, 0.9);
+  --ink: #0d1730;
+  --ink-dim: #5a6789;
+  --border: rgba(28, 52, 110, 0.12);
+  --shadow: 0 1px 2px rgba(16, 31, 73, 0.05), 0 12px 32px -12px rgba(16, 31, 73, 0.22);
+  --usdc: var(--blue);
+  --amber: var(--gold);
+
+  /* --- layout -------------------------------------------------------- */
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 264px 1fr;
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+
+  /* the atmosphere: two soft blooms over a tinted field, never white */
+  background:
+    radial-gradient(900px 620px at 82% -8%, rgba(43, 108, 246, 0.16), transparent 62%),
+    radial-gradient(760px 520px at 96% 88%, rgba(227, 163, 58, 0.16), transparent 60%),
+    linear-gradient(180deg, #eef3ff 0%, var(--canvas) 46%, #dfe8ff 100%);
+}
+
+/* ------------------------------------------------------------- sidebar */
+
+.dsk-rail {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 16px 18px;
+  background: linear-gradient(168deg, var(--rail-top) 0%, var(--rail-bottom) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+/* the meridian: a single gold hairline down the rail's edge */
+.dsk-rail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(227, 163, 58, 0.55) 22%,
+    rgba(227, 163, 58, 0.55) 68%,
+    transparent 100%
+  );
+}
+
+.dsk-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 26px;
+}
+
+.dsk-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: #0b1738;
+  background: linear-gradient(150deg, var(--gold) 0%, #f6cf82 100%);
+  box-shadow: 0 6px 16px -6px rgba(227, 163, 58, 0.7);
+}
+
+.dsk-wordmark {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f2f6ff;
+}
+.dsk-wordmark em {
+  font-style: normal;
+  color: var(--gold);
+}
+
+.dsk-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.dsk-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dsk-group-title {
+  margin: 0 0 8px;
+  padding-left: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(190, 205, 240, 0.5);
+}
+
+.dsk-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #b7c5e6;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.dsk-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e9f0ff;
+}
+
+.dsk-link.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* active marker picks up the same gold as the meridian */
+.dsk-link.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gold);
+}
+
+.dsk-glyph {
+  width: 16px;
+  font-size: 12px;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.dsk-link.is-active .dsk-glyph {
+  color: var(--gold);
+  opacity: 1;
+}
+
+.dsk-rail-foot {
+  padding-top: 18px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dsk-out {
+  display: block;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  color: rgba(183, 197, 230, 0.75);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+.dsk-out:hover {
+  color: var(--gold);
+}
+
+/* ---------------------------------------------------------------- main */
+
+.dsk-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dsk-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 34px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(14px);
+}
+
+.dsk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.dsk-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c08a;
+  box-shadow: 0 0 0 0 rgba(34, 192, 138, 0.55);
+  animation: dsk-pulse 2.4s ease-out infinite;
+}
+
+@keyframes dsk-pulse {
+  70% { box-shadow: 0 0 0 7px rgba(34, 192, 138, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 192, 138, 0); }
+}
+
+.dsk-fee {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.dsk-connect {
+  margin-left: auto;
+}
+
+.dsk-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 44px 34px 56px;
+}
+
+/* ---------------------------------------------------------------- hero */
+
+.dsk-hero {
+  max-width: 1180px;
+  margin: 0 auto 30px;
+  padding-left: 2px;
+}
+
+.dsk-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 12px;
+  padding-left: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #a9782a;
+  border-left: 2px solid var(--gold);
+  line-height: 1.1;
+}
+
+/* the one place the serif appears — the page's voice, used once */
+.dsk-title {
+  margin: 0 0 12px;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: clamp(34px, 3.4vw, 50px);
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  color: #0b1738;
+  max-width: 17ch;
+}
+
+.dsk-sub {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+
+/* ------------------------------------------------------------- content */
+
+.dsk-content {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* Give the market grid room to breathe on a wide screen. Components that
+   already stack vertically get laid out in columns here. */
+.dsk-content > div:not([class]),
+.dsk-content > .dsk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.dsk-foot {
+  max-width: 1180px;
+  margin: 46px auto 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+/* --------------------------------------------------- surfaces & polish */
+
+/* Cards sit on the atmosphere as light glass rather than solid white. */
+.dsk .glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+
+.dsk .glass-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Money reads in the gold. */
+.dsk .num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.dsk :focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsk *,
+  .dsk *::before,
+  .dsk *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================================================
+   Narrow screens — the rail becomes a drawer.
+
+   Same palette, same type, same structure. Only the navigation changes shape,
+   because a fixed 264px column has no business on a 390px phone.
+   ========================================================================== */
+
+/* hidden by default; only ever appears below the breakpoint */
+.dsk-burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dsk-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  padding: 0;
+  background: rgba(9, 20, 48, 0.5);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+@media (max-width: 1023px) {
+  .dsk {
+    /* one column — the rail slides over instead of sitting beside */
+    grid-template-columns: 1fr;
+  }
+
+  .dsk-burger {
+    display: inline-flex;
+  }
+
+  .dsk-scrim {
+    display: block;
+  }
+
+  .dsk.nav-open .dsk-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .dsk-rail {
+    position: fixed;
+    z-index: 50;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 268px;
+    max-width: 82vw;
+    transform: translateX(-100%);
+    transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: 24px 0 60px -30px rgba(9, 20, 48, 0.6);
+  }
+
+  .dsk.nav-open .dsk-rail {
+    transform: translateX(0);
+  }
+
+  /* tighter frame, but nothing else about the design gives way */
+  .dsk-top {
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .dsk-fee {
+    display: none; /* the chip already says where you are */
+  }
+
+  .dsk-scroll {
+    padding: 26px 16px 40px;
+  }
+
+  .dsk-hero {
+    margin-bottom: 22px;
+  }
+
+  .dsk-title {
+    font-size: clamp(27px, 7.4vw, 36px);
+    max-width: 20ch;
+  }
+
+  .dsk-sub {
+    font-size: 13.5px;
+  }
+
+  /* single column of cards on a phone */
+  .dsk-content > div:not([class]),
+  .dsk-content > .dsk-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .dsk-chip {
+    padding: 5px 9px;
+    font-size: 11.5px;
+  }
+
+  .dsk-scroll {
+    padding: 22px 13px 36px;
+  }
+}
