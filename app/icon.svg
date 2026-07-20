@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Same mark as the sidebar, inverted for contrast at 16px:
+       deep navy field, gold arc. Strokes are heavy on purpose —
+       anything finer disappears in a browser tab. -->
+  <rect width="32" height="32" rx="7" fill="#0F2050"/>
+  <path d="M7 24 L16 8 L25 24"
+        fill="none"
+        stroke="#E3A33A"
+        stroke-width="3.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  <path d="M11.4 18.6 H20.6"
+        fill="none"
+        stroke="#E3A33A"
+        stroke-width="3.4"
+        stroke-linecap="round"/>
+</svg>
